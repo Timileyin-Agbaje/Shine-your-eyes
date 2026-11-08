@@ -1,0 +1,23 @@
+{
+  "name": "@sye/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@sye/core": "workspace:*",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.13",
+    "@preact/preset-vite": "2.10.6",
+    "vite": "8.3.4",
+    "vite-plugin-pwa": "2.0.0",
+    "workbox-window": "7.4.1"
+  }
+}
