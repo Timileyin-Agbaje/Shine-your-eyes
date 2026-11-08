@@ -1,0 +1,22 @@
+{
+  "name": "shine-your-eye",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n web,server -c cyan,magenta \"pnpm --filter @sye/web dev\" \"pnpm --filter @sye/server dev\"",
+    "build": "pnpm --filter @sye/web build",
+    "start": "pnpm --filter @sye/server start",
+    "typecheck": "pnpm -r typecheck && tsc --noEmit -p .",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "22.20.5",
+    "concurrently": "9.2.5",
+    "typescript": "6.0.3"
+  }
+}

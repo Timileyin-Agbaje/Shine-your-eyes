@@ -1,0 +1,17 @@
+{
+  "name": "@sye/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.6",
+    "@sye/core": "workspace:*",
+    "hono": "4.13.17",
+    "tsx": "4.23.15"
+  }
+}
