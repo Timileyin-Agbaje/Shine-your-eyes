@@ -1,5 +1,5 @@
 import { type Currency, decodeInvoice, type DecodeResult, type Invoice, isSandboxInvoice } from "@sye/core";
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Money } from "../components/Money.tsx";
 import { RateNote } from "../components/RateNote.tsx";
 import { canScan, Scanner } from "../components/Scanner.tsx";
@@ -36,6 +36,8 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
   const [paying, setPaying] = useState<Invoice | undefined>();
   const [now, setNow] = useState(() => Date.now());
   const [helperBusy, setHelperBusy] = useState(false);
+  // Set synchronously on the first tap, so a fast double tap can't pay twice.
+  const inFlight = useRef(false);
 
   const locked = status === "paying" || status === "unknown" || status === "checking";
   const result = useMemo(() => check(text, wallet.isTest, now), [text, wallet.isTest, now]);
@@ -78,17 +80,29 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
     if (outcome === "sent") onSent();
   };
 
+  const toPayment = (i: Invoice) => ({ invoice: i.raw, paymentHash: i.paymentHash, expiresAt: i.expiresAt });
+
   const pay = async () => {
-    if (!invoice || notEnough || locked) return;
+    if (!invoice || notEnough || locked || inFlight.current) return;
+    inFlight.current = true;
     setPaying(invoice);
     setStatus("paying");
-    settle(await payAndConfirm(wallet, invoice.raw, invoice.paymentHash));
+    try {
+      settle(await payAndConfirm(wallet, toPayment(invoice)));
+    } finally {
+      inFlight.current = false;
+    }
   };
 
   const recheck = async () => {
-    if (!paying) return;
+    if (!paying || inFlight.current) return;
+    inFlight.current = true;
     setStatus("checking");
-    settle(await checkPayment(wallet, paying.paymentHash));
+    try {
+      settle(await checkPayment(wallet, toPayment(paying)));
+    } finally {
+      inFlight.current = false;
+    }
   };
 
   if (status === "sent" && paying) {
@@ -110,7 +124,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
   return (
     <main class="screen">
       <header class="bar">
-        <button type="button" class="btn btn--link" onClick={onBack} disabled={locked}>
+        <button type="button" class="btn btn--link" onClick={onBack} disabled={status === "paying"}>
           ← {strings.back}
         </button>
         <h1>{s.title}</h1>
