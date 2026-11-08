@@ -1,5 +1,6 @@
 import { CURRENCIES, type Currency } from "@sye/core";
 import { Money } from "../components/Money.tsx";
+import { RateNote } from "../components/RateNote.tsx";
 import { strings } from "../strings.ts";
 
 const s = strings.home;
@@ -19,13 +20,6 @@ type Props = {
 };
 
 const LABELS: Record<Currency, string> = { NGN: "₦ Naira", XOF: "CFA franc" };
-
-function formatAge(ms: number): string {
-  const minutes = Math.round(ms / 60_000);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours} h` : `${Math.round(hours / 24)} days`;
-}
 
 export function Home(p: Props) {
   return (
@@ -49,13 +43,7 @@ export function Home(p: Props) {
         ) : (
           <Money sats={p.balance} currency={p.currency} rate={p.rate} size="big" />
         )}
-        <p class="muted small">
-          {p.rate === undefined
-            ? s.noRate
-            : p.rateAgeMs !== undefined && p.rateAgeMs > 15 * 60_000
-              ? s.rateAge(formatAge(p.rateAgeMs))
-              : s.approx}
-        </p>
+        <RateNote rate={p.rate} rateAgeMs={p.rateAgeMs} />
       </section>
 
       <div class="actions">

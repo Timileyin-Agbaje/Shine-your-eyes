@@ -15,12 +15,15 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
+/** Runs one request and resolves only once its transaction has committed. */
 async function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest): Promise<T> {
   const db = await openDb();
   return new Promise<T>((resolve, reject) => {
-    const req = fn(db.transaction(STORE, mode).objectStore(STORE));
-    req.onsuccess = () => resolve(req.result as T);
-    req.onerror = () => reject(req.error);
+    const tx = db.transaction(STORE, mode);
+    const req = fn(tx.objectStore(STORE));
+    tx.oncomplete = () => resolve(req.result as T);
+    tx.onerror = () => reject(tx.error ?? req.error);
+    tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
   }).finally(() => db.close());
 }
 
@@ -28,12 +31,36 @@ const get = <T>(key: string) => run<T | undefined>("readonly", (s) => s.get(key)
 const put = (key: string, value: unknown) => run<void>("readwrite", (s) => s.put(value, key));
 const del = (key: string) => run<void>("readwrite", (s) => s.delete(key));
 
+/**
+ * The device key. Creation is atomic: a candidate key is stored with `add`
+ * inside one readwrite transaction, so if two tabs race, one add fails and
+ * both end up using the key that was stored first.
+ */
 async function deviceKey(): Promise<CryptoKey> {
   const existing = await get<CryptoKey>("deviceKey");
   if (existing) return existing;
-  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-  await put("deviceKey", key);
-  return key;
+  const candidate = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  const db = await openDb();
+  try {
+    return await new Promise<CryptoKey>((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      const store = tx.objectStore(STORE);
+      let key: CryptoKey | undefined;
+      const read = store.get("deviceKey");
+      read.onsuccess = () => {
+        key = read.result as CryptoKey | undefined;
+        if (!key) {
+          key = candidate;
+          store.add(candidate, "deviceKey");
+        }
+      };
+      tx.oncomplete = () => resolve(key!);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export type SavedWallet = { url: string; isTest: boolean };

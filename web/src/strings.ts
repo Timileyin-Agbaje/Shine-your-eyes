@@ -51,6 +51,8 @@ export const strings = {
     paying: "Paying from faucet…",
     error: "Couldn't make the request. Check that your wallet is online.",
     tooSmall: "Enter an amount of at least 1 sat.",
+    badAmount: "Enter an amount like 5000 or 2500.50.",
+    badSats: "Enter a whole number of sats, like 5000.",
   },
 
   send: {
@@ -71,7 +73,10 @@ export const strings = {
     paying: "Paying…",
     sent: "Sent",
     done: "Done",
-    failed: "The payment didn't go through. Check your balance before you try again.",
+    failed: "The payment didn't go through. Your money has not left.",
+    unknown: "We haven't heard back from your wallet yet. Don't pay again: the money may already be on its way.",
+    checkAgain: "Check again",
+    checking: "Checking…",
     notEnough: "You don't have enough in your wallet for this.",
     errors: {
       malformed: "This isn't a valid payment request. Ask the person to send it again.",

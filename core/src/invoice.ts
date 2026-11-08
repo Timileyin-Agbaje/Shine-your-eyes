@@ -5,6 +5,7 @@ export type Network = "mainnet" | "testnet" | "signet" | "regtest";
 export type Invoice = {
   raw: string;
   network: Network;
+  /** May include a fraction of a sat (amountMsat / 1000); never rounded. */
   amountSats: number;
   amountMsat: number;
   description: string;
@@ -70,7 +71,7 @@ export function decodeInvoice(input: string, nowSeconds = Math.floor(Date.now() 
       raw,
       network,
       amountMsat,
-      amountSats: Math.floor(amountMsat / 1000),
+      amountSats: amountMsat / 1000,
       description: typeof description === "string" ? description : "",
       paymentHash,
       payee: typeof payee === "string" ? payee : undefined,

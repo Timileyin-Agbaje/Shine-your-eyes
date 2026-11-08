@@ -1,17 +1,25 @@
-import { type Currency, fiatToSats, formatFiat, formatSats, satsToFiat } from "@sye/core";
+import { type Currency, fiatToSats, formatFiat, formatSats, parseAmountInput, satsToFiat } from "@sye/core";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { renderSVG } from "uqr";
 import { Money } from "../components/Money.tsx";
+import { RateNote } from "../components/RateNote.tsx";
 import { faucetPay } from "../lib/faucet.ts";
 import { type Wallet, withTimeout } from "../lib/wallet.ts";
 import { strings } from "../strings.ts";
 
 const s = strings.receive;
 
-type Props = { wallet: Wallet; currency: Currency; rate: number | undefined; onBack: () => void; onPaid: () => void };
+type Props = {
+  wallet: Wallet;
+  currency: Currency;
+  rate: number | undefined;
+  rateAgeMs: number | undefined;
+  onBack: () => void;
+  onPaid: () => void;
+};
 type Request = { invoice: string; paymentHash: string; sats: number };
 
-export function Receive({ wallet, currency, rate, onBack, onPaid }: Props) {
+export function Receive({ wallet, currency, rate, rateAgeMs, onBack, onPaid }: Props) {
   const [unit, setUnit] = useState<"fiat" | "sats">(rate === undefined ? "sats" : "fiat");
   const [amount, setAmount] = useState("");
   const [request, setRequest] = useState<Request | undefined>();
@@ -21,12 +29,15 @@ export function Receive({ wallet, currency, rate, onBack, onPaid }: Props) {
   const [copied, setCopied] = useState(false);
   const [faucetBusy, setFaucetBusy] = useState(false);
 
-  const value = Number(amount.replace(/[^\d.]/g, ""));
-  const sats = unit === "sats" || rate === undefined ? Math.floor(value) : fiatToSats(value, rate);
+  // Without a rate, amounts can only be typed in sats.
+  const inSats = unit === "sats" || rate === undefined;
+  const value = parseAmountInput(amount, { decimals: !inSats });
+  const sats = value === undefined ? undefined : inSats ? value : fiatToSats(value, rate!);
 
   const create = async (e: Event) => {
     e.preventDefault();
-    if (!Number.isFinite(sats) || sats < 1) return setError(s.tooSmall);
+    if (value === undefined || sats === undefined) return setError(inSats ? s.badSats : s.badAmount);
+    if (sats < 1) return setError(s.tooSmall);
     setBusy(true);
     setError(undefined);
     try {
@@ -128,22 +139,25 @@ export function Receive({ wallet, currency, rate, onBack, onPaid }: Props) {
               onInput={(e) => setAmount(e.currentTarget.value)}
               placeholder="0"
             />
-            {rate !== undefined && (
+            {rate !== undefined ? (
               <button
                 type="button"
                 class="btn btn--small"
                 onClick={() => setUnit(unit === "fiat" ? "sats" : "fiat")}
                 aria-label="Switch unit"
               >
-                {unit === "fiat" ? (currency === "NGN" ? "₦" : "CFA") : "sats"} ⇄
+                {inSats ? "sats" : currency === "NGN" ? "₦" : "CFA"} ⇄
               </button>
+            ) : (
+              <span class="unit">sats</span>
             )}
           </div>
-          {value > 0 && (
+          {sats !== undefined && sats > 0 && (
             <p class="muted">
-              = {unit === "fiat" ? formatSats(sats) : rate !== undefined ? `≈ ${formatFiat(satsToFiat(sats, rate), currency)}` : ""}
+              = {inSats ? (rate !== undefined ? `≈ ${formatFiat(satsToFiat(sats, rate), currency)}` : formatSats(sats)) : formatSats(sats)}
             </p>
           )}
+          <RateNote rate={rate} rateAgeMs={rateAgeMs} />
           <button type="submit" class="btn btn--primary" disabled={busy}>
             {busy ? s.creating : s.create}
           </button>

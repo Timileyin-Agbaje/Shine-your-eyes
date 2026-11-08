@@ -1,9 +1,10 @@
-import { type Currency, decodeInvoice, type DecodeResult, isSandboxInvoice } from "@sye/core";
+import { type Currency, decodeInvoice, type DecodeResult, type Invoice, isSandboxInvoice } from "@sye/core";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { Money } from "../components/Money.tsx";
+import { RateNote } from "../components/RateNote.tsx";
 import { canScan, Scanner } from "../components/Scanner.tsx";
 import { faucetInvoice } from "../lib/faucet.ts";
-import { type Wallet, withTimeout } from "../lib/wallet.ts";
+import { checkPayment, payAndConfirm, type Wallet } from "../lib/wallet.ts";
 import { strings } from "../strings.ts";
 
 const s = strings.send;
@@ -13,72 +14,91 @@ type Props = {
   balance: number | undefined;
   currency: Currency;
   rate: number | undefined;
+  rateAgeMs: number | undefined;
   onBack: () => void;
   onSent: () => void;
 };
 
-function check(text: string, isTest: boolean): DecodeResult | undefined {
+type Status = "idle" | "paying" | "sent" | "failed" | "unknown" | "checking";
+
+function check(text: string, isTest: boolean, nowMs: number): DecodeResult | undefined {
   if (!text.trim()) return undefined;
-  const result = decodeInvoice(text);
+  const result = decodeInvoice(text, Math.floor(nowMs / 1000));
   if (result.ok && isTest && !isSandboxInvoice(result.invoice)) return { ok: false, error: "not_sandbox" };
   return result;
 }
 
-export function Send({ wallet, balance, currency, rate, onBack, onSent }: Props) {
+export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSent }: Props) {
   const [text, setText] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [status, setStatus] = useState<"idle" | "paying" | "sent" | "failed">("idle");
+  const [status, setStatus] = useState<Status>("idle");
+  // The invoice being paid is frozen here, so editing the box can't change what we report.
+  const [paying, setPaying] = useState<Invoice | undefined>();
   const [now, setNow] = useState(() => Date.now());
   const [helperBusy, setHelperBusy] = useState(false);
 
-  const result = useMemo(() => check(text, wallet.isTest), [text, wallet.isTest, now]);
+  const locked = status === "paying" || status === "unknown" || status === "checking";
+  const result = useMemo(() => check(text, wallet.isTest, now), [text, wallet.isTest, now]);
 
   // Keep the expiry countdown honest while the screen is open.
   useEffect(() => {
+    if (locked) return;
     const timer = setInterval(() => setNow(Date.now()), 15_000);
     return () => clearInterval(timer);
-  }, []);
+  }, [locked]);
 
-  const invoice = result?.ok ? result.invoice : undefined;
-  const notEnough = invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
+  const invoice = locked ? paying : result?.ok ? result.invoice : undefined;
+  const notEnough = !locked && invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
   const minutesLeft = invoice ? Math.floor((invoice.expiresAt * 1000 - now) / 60_000) : 0;
+
+  const edit = (value: string) => {
+    if (locked) return;
+    setText(value);
+    setStatus("idle");
+  };
 
   const pasteFromClipboard = async () => {
     try {
-      setText(await navigator.clipboard.readText());
+      edit(await navigator.clipboard.readText());
     } catch {}
   };
 
   const getTestInvoice = async () => {
     setHelperBusy(true);
     try {
-      setText(await faucetInvoice(1000, "Test payment"));
+      edit(await faucetInvoice(1000, "Test payment"));
     } catch {
     } finally {
       setHelperBusy(false);
     }
   };
 
-  const pay = async () => {
-    if (!invoice || notEnough) return;
-    setStatus("paying");
-    try {
-      await withTimeout(wallet.client.payInvoice({ invoice: invoice.raw }), 60_000);
-      setStatus("sent");
-      onSent();
-    } catch {
-      setStatus("failed");
-    }
+  const settle = (outcome: "sent" | "failed" | "unknown") => {
+    setStatus(outcome);
+    if (outcome === "sent") onSent();
   };
 
-  if (status === "sent" && invoice) {
+  const pay = async () => {
+    if (!invoice || notEnough || locked) return;
+    setPaying(invoice);
+    setStatus("paying");
+    settle(await payAndConfirm(wallet, invoice.raw, invoice.paymentHash));
+  };
+
+  const recheck = async () => {
+    if (!paying) return;
+    setStatus("checking");
+    settle(await checkPayment(wallet, paying.paymentHash));
+  };
+
+  if (status === "sent" && paying) {
     return (
       <main class="screen">
         <section class="card center">
           <p class="success" role="status">
             ✓ {s.sent}
           </p>
-          <Money sats={invoice.amountSats} currency={currency} rate={rate} size="big" />
+          <Money sats={paying.amountSats} currency={currency} rate={rate} size="big" />
           <button type="button" class="btn btn--primary" onClick={onBack}>
             {s.done}
           </button>
@@ -90,7 +110,7 @@ export function Send({ wallet, balance, currency, rate, onBack, onSent }: Props)
   return (
     <main class="screen">
       <header class="bar">
-        <button type="button" class="btn btn--link" onClick={onBack}>
+        <button type="button" class="btn btn--link" onClick={onBack} disabled={locked}>
           ← {strings.back}
         </button>
         <h1>{s.title}</h1>
@@ -101,34 +121,32 @@ export function Send({ wallet, balance, currency, rate, onBack, onSent }: Props)
         <textarea
           id="invoice"
           rows={4}
-          value={text}
+          value={locked ? (paying?.raw ?? text) : text}
+          readOnly={locked}
           placeholder={s.pastePlaceholder}
           autocomplete="off"
           spellcheck={false}
-          onInput={(e) => {
-            setText(e.currentTarget.value);
-            setStatus("idle");
-          }}
+          onInput={(e) => edit(e.currentTarget.value)}
         />
         <div class="actions">
-          <button type="button" class="btn btn--secondary" onClick={pasteFromClipboard}>
+          <button type="button" class="btn btn--secondary" onClick={pasteFromClipboard} disabled={locked}>
             {s.paste}
           </button>
           {canScan && (
-            <button type="button" class="btn btn--secondary" onClick={() => setScanning(true)}>
+            <button type="button" class="btn btn--secondary" onClick={() => setScanning(true)} disabled={locked}>
               {s.scan}
             </button>
           )}
         </div>
         {wallet.isTest && (
-          <button type="button" class="btn btn--link" onClick={getTestInvoice} disabled={helperBusy}>
+          <button type="button" class="btn btn--link" onClick={getTestInvoice} disabled={helperBusy || locked}>
             {s.getTestInvoice}
           </button>
         )}
-        {scanning && (
+        {scanning && !locked && (
           <Scanner
             onScan={(value) => {
-              setText(value);
+              edit(value);
               setScanning(false);
             }}
             onClose={() => setScanning(false)}
@@ -136,7 +154,7 @@ export function Send({ wallet, balance, currency, rate, onBack, onSent }: Props)
         )}
       </section>
 
-      {result && !result.ok && (
+      {!locked && result && !result.ok && (
         <p class="error" role="alert">
           {s.errors[result.error]}
         </p>
@@ -146,26 +164,34 @@ export function Send({ wallet, balance, currency, rate, onBack, onSent }: Props)
         <section class="card" aria-live="polite">
           <h2>{s.youArePaying}</h2>
           <Money sats={invoice.amountSats} currency={currency} rate={rate} size="big" />
+          <RateNote rate={rate} rateAgeMs={rateAgeMs} />
           <dl class="facts">
             <dt>{s.forLabel}</dt>
             {/* Rendered as plain text: invoice descriptions are untrusted. */}
             <dd>{invoice.description || s.noDescription}</dd>
           </dl>
-          <p class="muted">{s.expiresIn(minutesLeft)}</p>
+          {!locked && <p class="muted">{s.expiresIn(minutesLeft)}</p>}
           {notEnough && <p class="error">{s.notEnough}</p>}
           {status === "failed" && (
             <p class="error" role="alert">
               {s.failed}
             </p>
           )}
-          <button
-            type="button"
-            class="btn btn--primary"
-            onClick={pay}
-            disabled={status === "paying" || notEnough}
-          >
-            {status === "paying" ? s.paying : s.pay}
-          </button>
+          {(status === "unknown" || status === "checking") && (
+            <>
+              <p class="error" role="alert">
+                {s.unknown}
+              </p>
+              <button type="button" class="btn btn--secondary" onClick={recheck} disabled={status === "checking"}>
+                {status === "checking" ? s.checking : s.checkAgain}
+              </button>
+            </>
+          )}
+          {!(status === "unknown" || status === "checking") && (
+            <button type="button" class="btn btn--primary" onClick={pay} disabled={locked || notEnough}>
+              {status === "paying" ? s.paying : s.pay}
+            </button>
+          )}
         </section>
       )}
     </main>

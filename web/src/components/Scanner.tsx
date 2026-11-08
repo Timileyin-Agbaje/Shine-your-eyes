@@ -18,7 +18,11 @@ export function Scanner({ onScan, onClose }: { onScan: (text: string) => void; o
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (stopped || !video.current) return;
+        // Closed while the permission prompt was open: release the camera now.
+        if (stopped || !video.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
         video.current.srcObject = stream;
         await video.current.play();
         const detector = new (window as unknown as { BarcodeDetector: DetectorCtor }).BarcodeDetector({
