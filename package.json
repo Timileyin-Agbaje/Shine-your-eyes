@@ -11,12 +11,15 @@
     "build": "pnpm --filter @sye/web build",
     "start": "pnpm --filter @sye/server start",
     "typecheck": "pnpm -r typecheck && tsc --noEmit -p .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "spike:nwc": "tsx scripts/spike-nwc.ts"
   },
   "devDependencies": {
+    "@getalby/sdk": "8.1.1",
     "@playwright/test": "1.64.1",
     "@types/node": "22.20.5",
     "concurrently": "9.2.5",
+    "tsx": "4.23.15",
     "typescript": "6.0.3"
   }
 }

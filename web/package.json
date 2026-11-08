@@ -10,8 +10,10 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
+    "@getalby/sdk": "8.1.1",
     "@sye/core": "workspace:*",
-    "preact": "10.29.8"
+    "preact": "10.29.8",
+    "uqr": "0.1.3"
   },
   "devDependencies": {
     "@babel/core": "7.29.13",

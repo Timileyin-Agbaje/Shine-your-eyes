@@ -8,5 +8,9 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "light-bolt11-decoder": "3.2.0",
+    "zod": "4.6.7"
   }
 }
