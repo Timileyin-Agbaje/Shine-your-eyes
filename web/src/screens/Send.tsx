@@ -58,7 +58,11 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
   // so its final result (even "failed") stays on screen.
   const frozen = status !== "idle";
   const invoice = frozen ? paying : result?.ok ? result.invoice : undefined;
-  const notEnough = !frozen && invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
+  // A payment can be (re)tried only from idle or after a definite failure, and only
+  // while the request is still valid and affordable.
+  const canRetry = status === "idle" || status === "failed";
+  const expired = invoice !== undefined && invoice.expiresAt * 1000 <= now;
+  const notEnough = canRetry && invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
   const minutesLeft = invoice ? Math.floor((invoice.expiresAt * 1000 - now) / 60_000) : 0;
 
   const edit = (value: string) => {
@@ -85,6 +89,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
 
   const settle = (outcome: "sent" | "failed" | "unknown", invoice: Invoice, id: number) => {
     if (id !== attempt.current) return;
+    setNow(Date.now());
     setStatus(outcome);
     // Unknown results outlive this screen until the wallet gives an answer.
     onPending(outcome === "unknown" ? invoice : undefined);
@@ -94,7 +99,9 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
   const toPayment = (i: Invoice) => ({ invoice: i.raw, paymentHash: i.paymentHash, expiresAt: i.expiresAt });
 
   const pay = async () => {
-    if (!invoice || notEnough || locked || inFlight.current) return;
+    if (!invoice || !canRetry || expired || notEnough || inFlight.current) return;
+    // `now` ticks every 15 s and pauses while locked, so check expiry against the real clock too.
+    if (invoice.expiresAt * 1000 <= Date.now()) return setNow(Date.now());
     inFlight.current = true;
     const id = ++attempt.current;
     setPaying(invoice);
@@ -198,6 +205,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
             <dd>{invoice.description || s.noDescription}</dd>
           </dl>
           {!locked && <p class="muted">{s.expiresIn(minutesLeft)}</p>}
+          {canRetry && expired && <p class="error">{s.errors.expired}</p>}
           {notEnough && <p class="error">{s.notEnough}</p>}
           {status === "failed" && (
             <p class="error" role="alert">
@@ -215,7 +223,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
             </>
           )}
           {!(status === "unknown" || status === "checking") && (
-            <button type="button" class="btn btn--primary" onClick={pay} disabled={locked || notEnough}>
+            <button type="button" class="btn btn--primary" onClick={pay} disabled={!canRetry || expired || notEnough}>
               {status === "paying" ? s.paying : s.pay}
             </button>
           )}
