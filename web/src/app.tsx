@@ -61,8 +61,9 @@ export function App() {
 
   const connect = async (url: string, isTest: boolean) => {
     const next = openWallet(url, isTest);
+    // The first relay connection is sometimes slow or drops, so try twice.
     try {
-      await withTimeout(next.client.getInfo(), 30_000);
+      await withTimeout(next.client.getInfo(), 20_000).catch(() => withTimeout(next.client.getInfo(), 20_000));
     } catch (err) {
       next.client.close();
       throw err;
