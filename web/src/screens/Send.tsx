@@ -15,6 +15,9 @@ type Props = {
   currency: Currency;
   rate: number | undefined;
   rateAgeMs: number | undefined;
+  /** A payment whose result was unknown when the user last left this screen. */
+  pending: Invoice | undefined;
+  onPending: (invoice: Invoice | undefined) => void;
   onBack: () => void;
   onSent: () => void;
 };
@@ -28,12 +31,12 @@ function check(text: string, isTest: boolean, nowMs: number): DecodeResult | und
   return result;
 }
 
-export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSent }: Props) {
+export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPending, onBack, onSent }: Props) {
   const [text, setText] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [status, setStatus] = useState<Status>("idle");
+  const [status, setStatus] = useState<Status>(pending ? "unknown" : "idle");
   // The invoice being paid is frozen here, so editing the box can't change what we report.
-  const [paying, setPaying] = useState<Invoice | undefined>();
+  const [paying, setPaying] = useState<Invoice | undefined>(pending);
   const [now, setNow] = useState(() => Date.now());
   const [helperBusy, setHelperBusy] = useState(false);
   // Set synchronously on the first tap, so a fast double tap can't pay twice.
@@ -75,8 +78,10 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
     }
   };
 
-  const settle = (outcome: "sent" | "failed" | "unknown") => {
+  const settle = (outcome: "sent" | "failed" | "unknown", invoice: Invoice) => {
     setStatus(outcome);
+    // Unknown results outlive this screen until the wallet gives an answer.
+    onPending(outcome === "unknown" ? invoice : undefined);
     if (outcome === "sent") onSent();
   };
 
@@ -88,7 +93,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
     setPaying(invoice);
     setStatus("paying");
     try {
-      settle(await payAndConfirm(wallet, toPayment(invoice)));
+      settle(await payAndConfirm(wallet, toPayment(invoice)), invoice);
     } finally {
       inFlight.current = false;
     }
@@ -99,7 +104,7 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, onBack, onSen
     inFlight.current = true;
     setStatus("checking");
     try {
-      settle(await checkPayment(wallet, toPayment(paying)));
+      settle(await checkPayment(wallet, toPayment(paying)), paying);
     } finally {
       inFlight.current = false;
     }

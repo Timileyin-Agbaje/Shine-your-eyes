@@ -1,4 +1,5 @@
-import type { Currency } from "@sye/core";
+import type { Currency, Invoice } from "@sye/core";
+import { loadPending, storePending } from "./lib/pending.ts";
 import { useCallback, useEffect, useState } from "preact/hooks";
 import { loadCurrency, storeCurrency, useRates } from "./lib/rates.ts";
 import { forgetWallet, loadWallet, saveWallet } from "./lib/vault.ts";
@@ -17,6 +18,11 @@ export function App() {
   const [balance, setBalance] = useState<number | undefined>();
   const [balanceError, setBalanceError] = useState(false);
   const [currency, setCurrency] = useState<Currency>(loadCurrency);
+  const [pending, setPending] = useState<Invoice | undefined>(loadPending);
+  const updatePending = (invoice: Invoice | undefined) => {
+    setPending(invoice);
+    storePending(invoice);
+  };
   const rates = useRates();
   // Ticks so the rate's age stays accurate while a screen is open.
   const [now, setNow] = useState(() => Date.now());
@@ -63,6 +69,7 @@ export function App() {
   const disconnect = async () => {
     wallet?.client.close();
     await forgetWallet();
+    updatePending(undefined);
     setBalance(undefined);
     setWallet(null);
   };
@@ -98,6 +105,8 @@ export function App() {
         currency={currency}
         rate={rate}
         rateAgeMs={rateAgeMs}
+        pending={pending}
+        onPending={updatePending}
         onBack={back}
         onSent={refreshBalance}
       />
@@ -119,6 +128,7 @@ export function App() {
       onSend={() => setScreen("send")}
       onReceive={() => setScreen("receive")}
       onDisconnect={disconnect}
+      hasPending={pending !== undefined}
     />
   );
 }

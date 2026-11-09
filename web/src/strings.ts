@@ -33,6 +33,9 @@ export const strings = {
     disconnect: "Disconnect this wallet",
     disconnectConfirm: "Disconnect this wallet from the app? Your money stays in your wallet.",
     balanceError: "Couldn't load your balance. Pull down or try again.",
+    pendingTitle: "A payment is still being checked",
+    pendingBody: "Don't pay this request again until we know if it went through.",
+    pendingOpen: "Check payment",
     refresh: "Refresh",
   },
 

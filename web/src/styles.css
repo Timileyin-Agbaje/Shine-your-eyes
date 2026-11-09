@@ -347,3 +347,8 @@ textarea {
 .stale {
   color: var(--danger);
 }
+
+.warning {
+  border-color: var(--accent);
+  box-shadow: inset 4px 0 0 var(--accent);
+}

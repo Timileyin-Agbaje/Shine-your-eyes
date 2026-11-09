@@ -17,6 +17,7 @@ type Props = {
   onSend: () => void;
   onReceive: () => void;
   onDisconnect: () => void;
+  hasPending: boolean;
 };
 
 const LABELS: Record<Currency, string> = { NGN: "₦ Naira", XOF: "CFA franc" };
@@ -45,6 +46,16 @@ export function Home(p: Props) {
         )}
         <RateNote rate={p.rate} rateAgeMs={p.rateAgeMs} />
       </section>
+
+      {p.hasPending && (
+        <section class="card warning" role="alert">
+          <strong>{s.pendingTitle}</strong>
+          <p class="muted">{s.pendingBody}</p>
+          <button type="button" class="btn btn--primary" onClick={p.onSend}>
+            {s.pendingOpen}
+          </button>
+        </section>
+      )}
 
       <div class="actions">
         <button type="button" class="btn btn--primary" onClick={p.onSend}>
