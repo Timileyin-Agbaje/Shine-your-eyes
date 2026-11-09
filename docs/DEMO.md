@@ -21,7 +21,7 @@ On screen: the WhatsApp message (a screenshot from the fixture text).
    - ⛔ *The message says ₦50,000, but this request is for about ₦95,000.*
    - ⚠️ *This request expires in 4 minutes. Scammers rush you so you don't stop to check.*
    - ⚠️ *This is a large payment for a new wallet.*
-   - ℹ️ *You haven't paid this person before.*
+   - ℹ️ *You haven't paid this receiving wallet before.*
    - AI (TIM-88): *pressure to act fast · claims to speak for a family member · asks you to keep it secret*
 4. **"Don't pay"** is the big button. **"Pay anyway"** waits 10 seconds and needs a second tap.
 5. She taps **Ask Tunde** (TIM-92). Tunde's phone gets an encrypted Nostr message. He replies **"Stop – Mum, I'm fine, don't pay."** The reply shows on Mama's screen within seconds.

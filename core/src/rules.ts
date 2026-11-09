@@ -26,7 +26,7 @@ export type RuleInput = {
   localHour: number;
 };
 
-export const RULE_IDS = ["amount_mismatch", "rush", "new_payee", "unusually_large", "odd_hour"] as const;
+export const RULE_IDS = ["amount_mismatch", "amount_unchecked", "rush", "new_payee", "unusually_large", "odd_hour"] as const;
 export type RuleId = (typeof RULE_IDS)[number];
 
 const MISMATCH_TOLERANCE = 0.1;
@@ -52,6 +52,16 @@ export function evaluateRules(input: RuleInput): readonly Warning[] {
   const warnings: Warning[] = [];
 
   // Amount mismatch: what the message claims vs what the invoice actually asks for.
+  // Without exchange rates we can't compare, and we say so instead of staying silent.
+  if (input.message && !rates && extractAmounts(input.message).length > 0) {
+    warnings.push(
+      rule(
+        "amount_unchecked",
+        "high",
+        "We couldn't check the amount in the message against this request. Compare them yourself before paying.",
+      ),
+    );
+  }
   if (input.message && rates) {
     // Relative gap between each claimed amount and the invoice; the closest claim decides.
     const gaps = extractAmounts(input.message).map((claim) => {
@@ -78,9 +88,11 @@ export function evaluateRules(input: RuleInput): readonly Warning[] {
     warnings.push(rule("rush", "med", `This request expires ${when}. Scammers rush you so you don't stop to check.`));
   }
 
-  // New payee: no earlier payment to this destination.
+  // New payee: no earlier payment to this receiving wallet. Lightning invoices name the
+  // receiving node, not a person, so this can't tell people on a shared node apart
+  // (THREAT_MODEL "Known limits"); the wording says "wallet", not "person".
   if (!input.payeeHash || !input.history.some((p) => p.payeeHash === input.payeeHash)) {
-    warnings.push(rule("new_payee", "low", "You haven't paid this person before."));
+    warnings.push(rule("new_payee", "low", "You haven't paid this receiving wallet before."));
   }
 
   // Unusually large: compared with the user's normal sending, or a limit while the wallet is new.

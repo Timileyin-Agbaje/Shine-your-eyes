@@ -29,7 +29,10 @@ for (const hour of hours) {
               sats: fiatToSats(h.amount, RATES[h.currency]),
               at: Date.now() - (i + 1) * 86_400_000,
             }));
-            await page.evaluate((h) => localStorage.setItem("sye.history", JSON.stringify(h)), history);
+            await page.evaluate((records) => {
+              const { walletId } = JSON.parse(localStorage.getItem("sye.history") ?? "{}");
+              localStorage.setItem("sye.history", JSON.stringify({ walletId, records }));
+            }, history);
 
             const sats = fiatToSats(sc.invoice.amount, RATES[sc.invoice.currency]);
             const invoice = await maker.invoice(sats, sc.invoice.expiryMinutes * 60, sc.title.slice(0, 60));

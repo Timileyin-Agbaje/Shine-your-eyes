@@ -21,14 +21,17 @@ function parseNumber(digits: string, k: string | undefined): number {
 
 /** Finds amounts of local money claimed in a message, in order of appearance. */
 export function extractAmounts(message: string): ClaimedAmount[] {
-  const found: (ClaimedAmount & { index: number })[] = [];
+  const found: (ClaimedAmount & { index: number; end: number })[] = [];
   for (const [re, currency] of PATTERNS) {
     for (const m of message.matchAll(re)) {
       const amount = parseNumber(m[1]!, m[2]);
       if (!Number.isFinite(amount) || amount <= 0) continue;
-      if (found.some((f) => Math.abs(f.index - m.index!) < m[0].length && f.currency === currency)) continue;
-      found.push({ amount, currency, text: m[0].trim(), index: m.index! });
+      const start = m.index!;
+      const end = start + m[0].length;
+      // The same text can match two patterns (e.g. "NGN 500" and "500 NGN"); keep one per overlapping range.
+      if (found.some((f) => f.currency === currency && start < f.end && f.index < end)) continue;
+      found.push({ amount, currency, text: m[0].trim(), index: start, end });
     }
   }
-  return found.sort((a, b) => a.index - b.index).map(({ index: _index, ...rest }) => rest);
+  return found.sort((a, b) => a.index - b.index).map(({ index: _index, end: _end, ...rest }) => rest);
 }

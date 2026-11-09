@@ -24,7 +24,13 @@ export function makeWarning(w: Warning): Warning {
 /** Union only: returns every existing warning plus the new ones, most serious first. */
 export function addWarnings(existing: readonly Warning[], added: readonly Warning[]): readonly Warning[] {
   const seen = new Set(existing.map((w) => `${w.source}:${w.id}`));
-  const merged = [...existing, ...added.filter((w) => !seen.has(`${w.source}:${w.id}`)).map(makeWarning)];
+  const merged = [...existing];
+  for (const w of added) {
+    const key = `${w.source}:${w.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(makeWarning(w));
+  }
   return Object.freeze(sortWarnings(merged));
 }
 

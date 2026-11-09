@@ -105,12 +105,12 @@ export function Send(props: Props) {
       message: message.trim() || undefined,
       rates,
       currency,
-      history: loadHistory(),
+      history: loadHistory(wallet.id),
       payeeHash: payee.hash,
       now,
       localHour: new Date(now).getHours(),
     });
-  }, [invoice, payee, message, rates, currency, now]);
+  }, [invoice, payee, message, rates, currency, now, wallet.id]);
   const serious = warnings !== undefined && isSerious(warnings);
 
   // With serious warnings, "Pay anyway" waits, then needs a second tap.
@@ -151,7 +151,9 @@ export function Send(props: Props) {
     // Unknown results outlive this screen until the wallet gives an answer.
     onPending(outcome === "unknown" ? invoice : undefined);
     if (outcome === "sent") {
-      hashPayee(invoice.payee).then((payeeHash) => recordPayment({ payeeHash, sats: invoice.amountSats, at: Date.now() }));
+      hashPayee(invoice.payee).then((payeeHash) =>
+        recordPayment(wallet.id, { payeeHash, sats: invoice.amountSats, at: Date.now() }),
+      );
       onSent();
     }
   };
