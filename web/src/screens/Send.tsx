@@ -41,6 +41,8 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
   const [helperBusy, setHelperBusy] = useState(false);
   // Set synchronously on the first tap, so a fast double tap can't pay twice.
   const inFlight = useRef(false);
+  // Only the latest pay/check attempt may report a result.
+  const attempt = useRef(0);
 
   const locked = status === "paying" || status === "unknown" || status === "checking";
   const result = useMemo(() => check(text, wallet.isTest, now), [text, wallet.isTest, now]);
@@ -52,8 +54,11 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
     return () => clearInterval(timer);
   }, [locked]);
 
-  const invoice = locked ? paying : result?.ok ? result.invoice : undefined;
-  const notEnough = !locked && invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
+  // Once a payment has started, keep showing that invoice until the user edits the box,
+  // so its final result (even "failed") stays on screen.
+  const frozen = status !== "idle";
+  const invoice = frozen ? paying : result?.ok ? result.invoice : undefined;
+  const notEnough = !frozen && invoice !== undefined && balance !== undefined && invoice.amountSats > balance;
   const minutesLeft = invoice ? Math.floor((invoice.expiresAt * 1000 - now) / 60_000) : 0;
 
   const edit = (value: string) => {
@@ -78,7 +83,8 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
     }
   };
 
-  const settle = (outcome: "sent" | "failed" | "unknown", invoice: Invoice) => {
+  const settle = (outcome: "sent" | "failed" | "unknown", invoice: Invoice, id: number) => {
+    if (id !== attempt.current) return;
     setStatus(outcome);
     // Unknown results outlive this screen until the wallet gives an answer.
     onPending(outcome === "unknown" ? invoice : undefined);
@@ -90,10 +96,11 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
   const pay = async () => {
     if (!invoice || notEnough || locked || inFlight.current) return;
     inFlight.current = true;
+    const id = ++attempt.current;
     setPaying(invoice);
     setStatus("paying");
     try {
-      settle(await payAndConfirm(wallet, toPayment(invoice)), invoice);
+      settle(await payAndConfirm(wallet, toPayment(invoice)), invoice, id);
     } finally {
       inFlight.current = false;
     }
@@ -102,9 +109,10 @@ export function Send({ wallet, balance, currency, rate, rateAgeMs, pending, onPe
   const recheck = async () => {
     if (!paying || inFlight.current) return;
     inFlight.current = true;
+    const id = ++attempt.current;
     setStatus("checking");
     try {
-      settle(await checkPayment(wallet, toPayment(paying)), paying);
+      settle(await checkPayment(wallet, toPayment(paying)), paying, id);
     } finally {
       inFlight.current = false;
     }

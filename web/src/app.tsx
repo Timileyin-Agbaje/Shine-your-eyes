@@ -1,6 +1,6 @@
 import type { Currency, Invoice } from "@sye/core";
 import { loadPending, storePending } from "./lib/pending.ts";
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { loadCurrency, storeCurrency, useRates } from "./lib/rates.ts";
 import { forgetWallet, loadWallet, saveWallet } from "./lib/vault.ts";
 import { balanceSats, openWallet, type Wallet, withTimeout } from "./lib/wallet.ts";
@@ -22,6 +22,13 @@ export function App() {
   const updatePending = (invoice: Invoice | undefined) => {
     setPending(invoice);
     storePending(invoice);
+  };
+  // Results that arrive after a disconnect or a wallet switch belong to the old
+  // wallet, so they must not touch the pending payment.
+  const currentWallet = useRef<Wallet | null | undefined>(undefined);
+  currentWallet.current = wallet;
+  const pendingFor = (owner: Wallet) => (invoice: Invoice | undefined) => {
+    if (currentWallet.current === owner) updatePending(invoice);
   };
   const rates = useRates();
   // Ticks so the rate's age stays accurate while a screen is open.
@@ -106,7 +113,7 @@ export function App() {
         rate={rate}
         rateAgeMs={rateAgeMs}
         pending={pending}
-        onPending={updatePending}
+        onPending={pendingFor(wallet)}
         onBack={back}
         onSent={refreshBalance}
       />
