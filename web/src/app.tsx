@@ -2,6 +2,7 @@ import type { Currency, Invoice } from "@sye/core";
 import { loadPending, storePending } from "./lib/pending.ts";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { loadCurrency, storeCurrency, useRates } from "./lib/rates.ts";
+import { bindHistory, clearHistory } from "./lib/history.ts";
 import { forgetWallet, loadWallet, saveWallet } from "./lib/vault.ts";
 import { balanceSats, openWallet, type Wallet, withTimeout } from "./lib/wallet.ts";
 import { Connect } from "./screens/Connect.tsx";
@@ -41,7 +42,12 @@ export function App() {
 
   useEffect(() => {
     loadWallet()
-      .then((saved) => setWallet(saved ? openWallet(saved.url, saved.isTest) : null))
+      .then(async (saved) => {
+        if (!saved) return setWallet(null);
+        const opened = await openWallet(saved.url, saved.isTest);
+        bindHistory(opened.id);
+        setWallet(opened);
+      })
       .catch(() => setWallet(null));
   }, []);
 
@@ -60,7 +66,7 @@ export function App() {
   }, [wallet, screen]);
 
   const connect = async (url: string, isTest: boolean) => {
-    const next = openWallet(url, isTest);
+    const next = await openWallet(url, isTest);
     // The first relay connection is sometimes slow or drops, so try twice.
     try {
       await withTimeout(next.client.getInfo(), 20_000).catch(() => withTimeout(next.client.getInfo(), 20_000));
@@ -69,6 +75,7 @@ export function App() {
       throw err;
     }
     await saveWallet({ url, isTest });
+    bindHistory(next.id);
     setBalance(undefined);
     setScreen("home");
     setWallet(next);
@@ -77,6 +84,7 @@ export function App() {
   const disconnect = async () => {
     wallet?.client.close();
     await forgetWallet();
+    clearHistory();
     updatePending(undefined);
     setBalance(undefined);
     setWallet(null);
@@ -112,6 +120,7 @@ export function App() {
         balance={balance}
         currency={currency}
         rate={rate}
+        rates={rates?.rates}
         rateAgeMs={rateAgeMs}
         pending={pending}
         onPending={pendingFor(wallet)}

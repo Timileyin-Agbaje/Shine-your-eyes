@@ -1,9 +1,11 @@
 import { Nip47WalletError, NWCClient } from "@getalby/sdk/nwc";
+import { sha256Hex } from "./history.ts";
 
-export type Wallet = { client: NWCClient; isTest: boolean };
+/** `id` is a hash of the connection code: stable per wallet, reveals nothing about it. */
+export type Wallet = { client: NWCClient; isTest: boolean; id: string };
 
-export function openWallet(url: string, isTest: boolean): Wallet {
-  return { client: new NWCClient({ nostrWalletConnectUrl: url }), isTest };
+export async function openWallet(url: string, isTest: boolean): Promise<Wallet> {
+  return { client: new NWCClient({ nostrWalletConnectUrl: url }), isTest, id: await sha256Hex(`wallet:${url}`) };
 }
 
 export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

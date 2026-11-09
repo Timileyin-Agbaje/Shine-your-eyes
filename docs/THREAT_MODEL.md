@@ -64,4 +64,6 @@ Our server never holds funds, seeds, NWC strings or private keys.
 - A web app trusts the code its server sends. A compromised server could ship a modified app.
 - Redaction is pattern-based and can miss things, such as names not introduced with "my name is".
 - A shared screenshot reaches our server and the AI provider unredacted. Redaction only applies to the text extracted from it.
+- Lightning invoices name the receiving node, not a person. Many people share one node (custodial wallets, the test faucet), so "you haven't paid this receiving wallet before" can stay quiet for a new person on a node the user has paid before.
+- Without exchange rates the amount in a message can't be compared, so the app shows "We couldn't check the amount" as a serious warning instead of staying silent.
 - The demo uses sandbox sats, not real bitcoin.

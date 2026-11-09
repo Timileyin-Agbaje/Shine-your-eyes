@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { RATES } from "./e2e/support.ts";
 
 const PORT = 8788;
 
@@ -33,7 +34,7 @@ export default defineConfig({
     command: "pnpm build && pnpm start",
     url: `http://localhost:${PORT}/api/health`,
     // Fixed BTC rates so amounts in local money are predictable.
-    env: { PORT: String(PORT), SYE_DB_PATH: ":memory:", RATES_FIXED: "NGN:102000000,XOF:44600000" },
+    env: { PORT: String(PORT), SYE_DB_PATH: ":memory:", RATES_FIXED: `NGN:${RATES.NGN},XOF:${RATES.XOF}` },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
