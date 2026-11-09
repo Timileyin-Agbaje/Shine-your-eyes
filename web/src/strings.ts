@@ -89,5 +89,20 @@ export const strings = {
     },
   },
 
+  guard: {
+    warningsLabel: "Warning signs",
+    // Never "safe": the check lowers risk, it can't prove a payment is fine.
+    noWarnings: "No warning signs found.",
+    addMessage: "Got a message with this request? Paste it here to check it too",
+    messageLabel: "The message that came with it (optional)",
+    messagePlaceholder: "Paste the WhatsApp or SMS message…",
+    messageStays: "We only read this on your phone for now.",
+    dontPay: "Don't pay",
+    payAnyway: "Pay anyway",
+    payAnywayWait: (seconds: number) => `Pay anyway (wait ${seconds} s)`,
+    confirmPayAnyway: "Tap again to pay anyway",
+    seriousNote: "Take a moment. Call the person on a number you already know before you pay.",
+  },
+
   back: "Back",
 } as const;

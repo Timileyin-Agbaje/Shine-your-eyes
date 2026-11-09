@@ -112,6 +112,7 @@ export function App() {
         balance={balance}
         currency={currency}
         rate={rate}
+        rates={rates?.rates}
         rateAgeMs={rateAgeMs}
         pending={pending}
         onPending={pendingFor(wallet)}
